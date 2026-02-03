@@ -1,0 +1,96 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>ArtMap - 미술관 전시 지도</title>
+    <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">ArtMap</div>
+                <div class="search-box">
+                    <input type="text" class="search-input" id="searchInput" placeholder="전시, 장소, 작가 검색..." />
+                </div>
+            </div>
+
+            <div class="trend-section">
+                <div class="trend-header">
+                    <h2>지금 뜨는 전시</h2>
+                    <span class="trend-sub">트렌드 순위</span>
+                </div>
+                <div class="trend-cards" id="trendCards"></div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div class="map-filters" id="mapFilters">
+                <div class="filter-row">
+                    <button class="filter-toggle" id="ratingFilter" onclick="toggleFilter('rating')">최고 평점</button>
+                    <button class="filter-toggle" id="freeFilter" onclick="toggleFilter('free')">무료</button>
+                    <button class="filter-toggle" id="ongoingFilter" onclick="toggleFilter('ongoing')">진행중</button>
+                </div>
+                <div class="filter-row" style="margin-top: 8px;">
+                    <select class="sort-select" id="sortSelect" onchange="applySort()">
+                        <option value="trend">트렌드순</option>
+                        <option value="distance">거리순</option>
+                    </select>
+                    <button class="toggle-filters-btn" id="advancedToggleText" onclick="toggleAdvancedFilters()">고급 필터 열기</button>
+                    <button class="compare-show-btn" id="compareShowBtn" type="button">비교 열기</button>
+                </div>
+                <div class="advanced-filters" id="advancedFilters">
+                    <div class="filter-group">
+                        <label class="filter-label">가격</label>
+                        <div class="filter-options">
+                            <span class="filter-chip" data-filter="price" data-value="free" onclick="toggleChipFilter(this)">무료</span>
+                            <span class="filter-chip" data-filter="price" data-value="under10k" onclick="toggleChipFilter(this)">1만원 이하</span>
+                            <span class="filter-chip" data-filter="price" data-value="over10k" onclick="toggleChipFilter(this)">1만원 초과</span>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">상태</label>
+                        <div class="filter-options">
+                            <span class="filter-chip" data-filter="status" data-value="ongoing" onclick="toggleChipFilter(this)">진행중</span>
+                            <span class="filter-chip" data-filter="status" data-value="upcoming" onclick="toggleChipFilter(this)">예정</span>
+                            <span class="filter-chip" data-filter="status" data-value="ended" onclick="toggleChipFilter(this)">종료</span>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">배리어프리</label>
+                        <div class="filter-options">
+                            <span class="filter-chip" data-filter="barrier" data-value="wheelchair" onclick="toggleChipFilter(this)">휠체어</span>
+                            <span class="filter-chip" data-filter="barrier" data-value="accessibleToilet" onclick="toggleChipFilter(this)">화장실</span>
+                            <span class="filter-chip" data-filter="barrier" data-value="braille" onclick="toggleChipFilter(this)">점자</span>
+                            <span class="filter-chip" data-filter="barrier" data-value="audioGuide" onclick="toggleChipFilter(this)">오디오</span>
+                            <span class="filter-chip" data-filter="barrier" data-value="guideDog" onclick="toggleChipFilter(this)">안내견</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <div class="compare-bar" id="compareBar">
+        <span id="compareCount">비교 0/3</span>
+        <button type="button" id="compareOpenBtn">비교하기</button>
+        <button type="button" class="compare-hide-btn" id="compareHideBtn">닫기</button>
+    </div>
+
+    <div class="compare-modal" id="compareModal" aria-hidden="true">
+        <div class="compare-modal-backdrop" id="compareBackdrop"></div>
+        <div class="compare-modal-panel" role="dialog" aria-modal="true" aria-labelledby="compareTitle">
+            <div class="compare-modal-header">
+                <h3 id="compareTitle">전시 비교</h3>
+                <button type="button" class="compare-close" id="compareCloseBtn">닫기</button>
+            </div>
+            <div class="compare-modal-body" id="compareBody"></div>
+        </div>
+    </div>
+
+    <script type="module" src="/main.js"></script>
+</body>
+</html>

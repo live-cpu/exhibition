@@ -1,0 +1,23 @@
+{
+  "name": "14_exhibition",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server/index.js",
+    "seed:venues": "node server/seedVenues.js",
+    "repair:periods": "node scripts/repair-periods.js",
+    "reset:resync": "node scripts/reset-and-resync.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^1.39.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "mongoose": "^9.1.5"
+  }
+}

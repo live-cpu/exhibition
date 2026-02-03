@@ -1,0 +1,116 @@
+# ===================
+# 환경 변수 및 설정
+# ===================
+.env
+.env.local
+.env.production
+.env.development
+!.env.example
+config.local.*
+
+# ===================
+# API 키 및 인증 파일
+# ===================
+api key*
+*api*key*
+*.pem
+*.key
+*.p12
+*.pfx
+serviceAccount*.json
+credentials*.json
+secrets*.json
+*secret*
+*.credentials
+
+# ===================
+# 의존성
+# ===================
+node_modules/
+.pnpm-store/
+.npm/
+
+# ===================
+# 빌드 및 캐시
+# ===================
+dist/
+build/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.output/
+*.tsbuildinfo
+
+# ===================
+# 로그 파일
+# ===================
+*.log
+logs/
+server.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===================
+# 임시 파일
+# ===================
+tmp/
+temp/
+*.tmp
+*.temp
+~$*
+*.swp
+*.swo
+*~
+
+# ===================
+# 개발 도구
+# ===================
+.vscode/settings.json
+.idea/
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# ===================
+# 테스트 및 디버그
+# ===================
+coverage/
+.nyc_output/
+tmp_*.mjs
+tmp_*.js
+preview_private*.json
+preview_private*.txt
+
+# ===================
+# 백업 파일
+# ===================
+*.bak
+*.backup
+*_backup*
+*.old
+
+# ===================
+# 데이터베이스 덤프
+# ===================
+*.dump
+*.sql
+db_backup/
+mongo_backup/
+
+# ===================
+# 업로드 파일
+# ===================
+uploads/
+user_uploads/
+
+# ===================
+# Vercel
+# ===================
+.vercel/
+
+# ===================
+# Claude
+# ===================
+.claude/
