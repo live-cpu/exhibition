@@ -5,28 +5,23 @@
  * 1. syncAllExhibitions - 공공 API 전시 동기화
  * 2. runPrivateVenueSync - 사설 미술관 동기화
  * 3. updateAllTrendScores - 트렌드 점수 업데이트
- * 4. enrichVenuesFromCsv - CSV 기반 venue 정보 보강
+ * 4. enrichVenuesBarrierFree - 관광공사 API 기반 무장애 정보 보강
  */
 
 import { canRunJobToday, recordJobRun, getLocalDateKey } from './jobRun.js';
 import Exhibition from '../models/Exhibition.js';
 import Venue from '../models/Venue.js';
 import { ensureTrendScore, isTrendApiAvailable } from './trendService.js';
-import { fetchNaverBlogSearch } from './naverApi.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { enrichVenueWithBarrierFree, isKorWithApiAvailable } from './korWithService.js';
 
 // 환경변수 설정
 const TREND_UPDATE_BATCH = Number(process.env.TREND_UPDATE_BATCH || 20);
 const TREND_UPDATE_DELAY_MS = Number(process.env.TREND_UPDATE_DELAY_MS || 1000);
 const VENUE_ENRICH_BATCH = Number(process.env.VENUE_ENRICH_BATCH || 10);
+const BARRIER_FREE_ENRICH_DELAY_MS = Number(process.env.BARRIER_FREE_ENRICH_DELAY_MS || 500);
 const PRIVATE_SYNC_ENABLED = String(process.env.PRIVATE_SYNC_ENABLED ?? 'true').toLowerCase() === 'true';
 const TREND_UPDATE_ENABLED = String(process.env.TREND_UPDATE_ENABLED ?? 'true').toLowerCase() === 'true';
-const CSV_ENRICH_ENABLED = String(process.env.CSV_ENRICH_ENABLED ?? 'true').toLowerCase() === 'true';
+const BARRIER_FREE_ENRICH_ENABLED = String(process.env.BARRIER_FREE_ENRICH_ENABLED ?? 'true').toLowerCase() === 'true';
 
 /**
  * 모든 전시의 트렌드 점수 업데이트
@@ -85,146 +80,88 @@ async function updateAllTrendScores() {
 }
 
 /**
- * CSV에서 venue 정보 로드
+ * 관광공사 API로 venue 무장애 정보 보강
  */
-function loadCsvVenues() {
-  const csvPath = path.resolve(__dirname, '../../KC_DSPSN_CLTUR_ART_TRRSRT_2023-2.csv');
-
-  if (!fs.existsSync(csvPath)) {
-    console.warn('[csv] CSV file not found:', csvPath);
-    return [];
+async function enrichVenuesBarrierFree() {
+  if (!BARRIER_FREE_ENRICH_ENABLED) {
+    console.log('[barrier-free] Barrier-free enrichment disabled');
+    return { enriched: 0, skipped: 0 };
   }
 
-  const content = fs.readFileSync(csvPath, 'utf-8');
-  const lines = content.split('\n').slice(2); // Skip header rows
-
-  const venues = [];
-  for (const line of lines) {
-    if (!line.trim()) continue;
-
-    const cols = line.split(',');
-    if (cols.length < 14) continue;
-
-    const [name, category, lat, lng, website, closedDays, hours, freeParking, paidParking, wheelchair, toilet, guideDog, braille, audio] = cols;
-
-    // 전시/공연 카테고리만
-    if (!category?.includes('전시')) continue;
-
-    venues.push({
-      name: name?.trim(),
-      category: category?.trim(),
-      location: {
-        lat: parseFloat(lat) || null,
-        lng: parseFloat(lng) || null
-      },
-      website: website?.trim() || '',
-      openHours: hours?.trim() || '',
-      closedDays: closedDays?.trim() || '',
-      barrierFree: {
-        wheelchair: wheelchair === 'Y',
-        parkingFree: freeParking === 'Y',
-        parkingPaid: paidParking === 'Y',
-        accessibleToilet: toilet === 'Y',
-        guideDog: guideDog === 'Y',
-        braille: braille === 'Y',
-        audioGuide: audio === 'Y'
-      }
-    });
+  if (!isKorWithApiAvailable()) {
+    console.log('[barrier-free] KorWithService API key not configured');
+    return { enriched: 0, skipped: 0, reason: 'no_api_key' };
   }
 
-  return venues;
-}
+  console.log('[barrier-free] Starting venue barrier-free enrichment...');
 
-/**
- * 공공 API에서 추가된 새 venue를 CSV와 동기화하고 네이버로 보강
- */
-async function enrichVenuesFromCsv() {
-  if (!CSV_ENRICH_ENABLED) {
-    console.log('[csv-enrich] CSV enrichment disabled');
-    return { enriched: 0, naverFilled: 0 };
-  }
-
-  console.log('[csv-enrich] Starting venue enrichment from CSV...');
-
-  const csvVenues = loadCsvVenues();
-  const csvMap = new Map(csvVenues.map(v => [v.name, v]));
-
-  // 정보가 부족한 venue 찾기
+  // 무장애 정보가 없거나 부족한 venue 찾기
   const dbVenues = await Venue.find({
     $or: [
-      { openHours: { $exists: false } },
-      { openHours: '' },
-      { 'location.lat': { $exists: false } },
-      { 'barrierFree.wheelchair': { $exists: false } }
+      { 'barrierFree.wheelchair': { $exists: false } },
+      { 'barrierFree.wheelchair': false, 'barrierFree.elevator': false, 'barrierFree.accessibleToilet': false }
     ]
   })
-    .select('name openHours location barrierFree website')
+    .select('name openHours location barrierFree')
     .limit(VENUE_ENRICH_BATCH)
     .lean();
 
   let enriched = 0;
-  let naverFilled = 0;
+  let skipped = 0;
 
   for (const dbVenue of dbVenues) {
-    const csvMatch = csvMap.get(dbVenue.name);
-    const updates = {};
+    try {
+      const result = await enrichVenueWithBarrierFree(dbVenue.name);
 
-    if (csvMatch) {
-      // CSV에서 정보 채우기
-      if (!dbVenue.openHours && csvMatch.openHours) {
-        updates.openHours = csvMatch.openHours;
+      if (!result) {
+        skipped++;
+        continue;
       }
-      if ((!dbVenue.location?.lat || !dbVenue.location?.lng) && csvMatch.location.lat && csvMatch.location.lng) {
-        updates.location = csvMatch.location;
+
+      const updates = {};
+
+      // 운영시간 업데이트 (기존 값이 없을 때만)
+      if (!dbVenue.openHours && result.openHours) {
+        updates.openHours = result.openHours;
       }
-      if (!dbVenue.website && csvMatch.website) {
-        updates.website = csvMatch.website.startsWith('http') ? csvMatch.website : `https://${csvMatch.website}`;
+
+      // 위치 정보 업데이트 (기존 값이 없을 때만)
+      if ((!dbVenue.location?.lat || !dbVenue.location?.lng) && result.location) {
+        updates.location = result.location;
       }
-      if (!dbVenue.barrierFree?.wheelchair && csvMatch.barrierFree) {
-        updates.barrierFree = { ...dbVenue.barrierFree, ...csvMatch.barrierFree };
+
+      // 무장애 정보 병합 (기존 true 값은 유지)
+      if (result.barrierFree) {
+        const merged = { ...dbVenue.barrierFree };
+        for (const [key, value] of Object.entries(result.barrierFree)) {
+          // boolean 값: 기존이 false면 새 값으로, 기존이 true면 유지
+          if (typeof value === 'boolean') {
+            if (!merged[key]) merged[key] = value;
+          }
+          // string 값 (grade): 기존 값이 없으면 새 값으로
+          else if (typeof value === 'string' && !merged[key]) {
+            merged[key] = value;
+          }
+        }
+        updates.barrierFree = merged;
       }
 
       if (Object.keys(updates).length > 0) {
         await Venue.updateOne({ _id: dbVenue._id }, { $set: updates });
         enriched++;
+        console.log(`[barrier-free] Updated: ${dbVenue.name}`);
       }
-    } else if (isTrendApiAvailable()) {
-      // CSV에 없으면 네이버 검색으로 보강 시도
-      try {
-        const searchQuery = `${dbVenue.name} 미술관 운영시간`;
-        const result = await fetchNaverBlogSearch(searchQuery, { display: 3 });
 
-        if (result.items?.length > 0) {
-          const descriptions = result.items.map(i => i.description || '').join(' ');
-
-          // 운영시간 패턴 추출
-          const hoursMatch = descriptions.match(/(\d{1,2}:\d{2})\s*[-~]\s*(\d{1,2}:\d{2})/);
-          if (hoursMatch && !dbVenue.openHours) {
-            updates.openHours = `${hoursMatch[1]} - ${hoursMatch[2]}`;
-          }
-
-          // 휴관일 패턴 추출
-          const closedMatch = descriptions.match(/(월요일|화요일|수요일|목요일|금요일|토요일|일요일)\s*(휴관|휴무)/);
-          if (closedMatch) {
-            updates.closedDays = closedMatch[0];
-          }
-
-          if (Object.keys(updates).length > 0) {
-            await Venue.updateOne({ _id: dbVenue._id }, { $set: updates });
-            naverFilled++;
-          }
-        }
-
-        // Rate limiting
-        await new Promise(r => setTimeout(r, 500));
-      } catch (err) {
-        console.warn(`[csv-enrich] Naver search failed for "${dbVenue.name}": ${err.message}`);
-      }
+      // Rate limiting
+      await new Promise(r => setTimeout(r, BARRIER_FREE_ENRICH_DELAY_MS));
+    } catch (err) {
+      console.warn(`[barrier-free] Failed for "${dbVenue.name}": ${err.message}`);
+      skipped++;
     }
   }
 
-  console.log(`[csv-enrich] Enriched from CSV: ${enriched}, Filled from Naver: ${naverFilled}`);
-  return { enriched, naverFilled };
+  console.log(`[barrier-free] Enriched: ${enriched}, Skipped: ${skipped}`);
+  return { enriched, skipped };
 }
 
 /**
@@ -299,14 +236,14 @@ export function startDailyScheduler(options = {}) {
         console.log('[4/5] Trend update already ran today, skipping');
       }
 
-      // 5. CSV 기반 venue 정보 보강
-      const csvGuard = await canRunJobToday('csv-enrich', { maxRuns: 1 });
-      if (csvGuard.allowed) {
-        console.log('\n[5/5] Enriching venues from CSV...');
-        const enrichResult = await enrichVenuesFromCsv();
-        await recordJobRun('csv-enrich', { meta: { reason, ...enrichResult } });
+      // 5. 관광공사 API로 무장애 정보 보강
+      const bfGuard = await canRunJobToday('barrier-free-enrich', { maxRuns: 1 });
+      if (bfGuard.allowed) {
+        console.log('\n[5/5] Enriching venues with barrier-free info...');
+        const enrichResult = await enrichVenuesBarrierFree();
+        await recordJobRun('barrier-free-enrich', { meta: { reason, ...enrichResult } });
       } else {
-        console.log('[5/5] CSV enrichment already ran today, skipping');
+        console.log('[5/5] Barrier-free enrichment already ran today, skipping');
       }
 
     } catch (error) {
@@ -343,4 +280,4 @@ export function startDailyScheduler(options = {}) {
 }
 
 // 수동 실행용 export
-export { updateAllTrendScores, enrichVenuesFromCsv };
+export { updateAllTrendScores, enrichVenuesBarrierFree };
