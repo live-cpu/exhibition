@@ -54,8 +54,7 @@ app.use('/api/sac', sacRouter);
 // 지도 API 키 제공 (클라이언트 측 지도용 - 도메인 제한 필수)
 app.get('/api/config/map', (req, res) => {
   res.json({
-    kakaoKey: process.env.KAKAO_MAP_KEY || '',
-    googleKey: process.env.GOOGLE_MAP_KEY || ''
+    kakaoKey: process.env.KAKAO_MAP_KEY || ''
   });
 });
 

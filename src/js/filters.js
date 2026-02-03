@@ -1,4 +1,4 @@
-export const filters = { rating: false, free: false, ongoing: false, price: [], status: [], barrier: [] };
+export const filters = { rating: false, free: false, ongoing: false, price: [], status: ['ongoing'], barrier: [] };
 export let currentSort = 'trend';
 
 // 정렬 상태 업데이트를 위한 함수 추가

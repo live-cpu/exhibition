@@ -25,9 +25,8 @@ const MAP_LOAD_LIMIT = 100000; // effectively disable daily cap
 const MAP_QUOTA_KEY = 'mapLoadQuota';
 let mapLoaded = false;
 let mapScriptLoading = false;
-let mapProvider = 'kakao';
 let mapQuotaIncremented = false;
-let mapApiKeys = { kakaoKey: '', googleKey: '' };
+let mapApiKeys = { kakaoKey: '' };
 
 async function fetchMapApiKeys() {
   try {
@@ -37,7 +36,7 @@ async function fetchMapApiKeys() {
     return mapApiKeys;
   } catch (err) {
     console.error('Failed to fetch map API keys:', err);
-    return { kakaoKey: '', googleKey: '' };
+    return { kakaoKey: '' };
   }
 }
 
@@ -398,7 +397,14 @@ async function loadKakaoMapsScript() {
 
   if (!apiKey) {
     console.warn('Kakao Maps key missing');
-    loadGoogleMapsScript();
+    if (mapElement) {
+      mapElement.innerHTML =
+        '<div style="padding: 40px; text-align: center; color: #666; font-size: 14px; line-height: 1.6;">' +
+        '<p>지도 API 키가 설정되지 않았습니다.</p>' +
+        '<p style="font-size:12px;color:#999;">환경 변수를 확인해주세요.</p>' +
+        '</div>';
+    }
+    loadData();
     return;
   }
   if (!canLoadMapToday()) {
@@ -420,73 +426,25 @@ async function loadKakaoMapsScript() {
       mapElement.innerHTML =
         '<div style="padding: 40px; text-align: center; color: #666; font-size: 14px; line-height: 1.6;">' +
         '<p>카카오 지도 로딩에 실패했습니다.</p>' +
-        '<p style="font-size:12px;color:#999;">도메인 등록/네트워크 상태/차단 확장 프로그램을 확인해주세요.</p>' +
+        '<p style="font-size:12px;color:#999;">도메인 등록/네트워크 상태를 확인해주세요.</p>' +
         '</div>';
     }
-    loadGoogleMapsScript();
+    loadData();
   };
   script.onload = () => {
     if (window.kakao && window.kakao.maps) {
       window.kakao.maps.load(() => initializeKakaoMap());
     } else {
       mapScriptLoading = false;
-      loadGoogleMapsScript();
+      const mapElement = document.getElementById('map');
+      if (mapElement) {
+        mapElement.innerHTML =
+          '<div style="padding: 40px; text-align: center; color: #666; font-size: 14px; line-height: 1.6;">' +
+          '<p>카카오 지도 초기화에 실패했습니다.</p>' +
+          '</div>';
+      }
+      loadData();
     }
-  };
-  document.head.appendChild(script);
-}
-
-async function loadGoogleMapsScript() {
-  if (mapLoaded || mapScriptLoading) return;
-  const mapElement = document.getElementById('map');
-  if (!mapElement) {
-    loadData();
-    return;
-  }
-
-  if (!canLoadMapToday()) {
-    console.warn('Map load limit reached');
-    return;
-  }
-
-  if (window.google && window.google.maps) {
-    initializeGoogleMap();
-    return;
-  }
-
-  // 서버에서 API 키 가져오기
-  if (!mapApiKeys.googleKey) {
-    await fetchMapApiKeys();
-  }
-  const apiKey = mapApiKeys.googleKey;
-
-  if (!apiKey) {
-    console.warn('Google Maps key missing');
-    mapElement.innerHTML =
-      '<div style="padding: 40px; text-align: center; color: #666; font-size: 14px; line-height: 1.6;">' +
-      '<p>지도 로딩에 실패했습니다.</p>' +
-      '<p style="font-size:12px;color:#999;">Google Maps API를 설정해주세요.</p>' +
-      '</div>';
-    loadData();
-    return;
-  }
-
-  mapScriptLoading = true;
-  ensureMapQuotaIncremented();
-
-  const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=initMap&v=weekly`;
-  script.async = true;
-  script.defer = true;
-  script.onerror = () => {
-    mapScriptLoading = false;
-    console.warn('Google Maps load failed.');
-    mapElement.innerHTML =
-      '<div style="padding: 40px; text-align: center; color: #666; font-size: 14px; line-height: 1.6;">' +
-      '<p>Google 지도 로딩에 실패했습니다.</p>' +
-      '<p style="font-size:12px;color:#999;">도메인/네트워크 상태를 확인해주세요.</p>' +
-      '</div>';
-    loadData();
   };
   document.head.appendChild(script);
 }
@@ -500,70 +458,31 @@ async function initializeKakaoMap() {
     }
 
     if (!window.kakao || !window.kakao.maps) {
-      loadGoogleMapsScript();
+      const mapEl = document.getElementById('map');
+      if (mapEl) {
+        mapEl.innerHTML =
+          '<div style="padding: 40px; text-align: center; color: #666; font-size: 14px;">' +
+          '<p>카카오 지도를 사용할 수 없습니다.</p></div>';
+      }
       loadData();
       return;
     }
     const center = new kakao.maps.LatLng(37.5665, 126.9780);
     map = new kakao.maps.Map(mapElement, { center, level: 4 });
 
-    mapProvider = 'kakao';
     mapLoaded = true;
     mapScriptLoading = false;
     loadData();
   } catch (err) {
-    const mapElement = document.getElementById('map');
-    if (mapElement) {
-      mapElement.innerHTML =
-        '<div style="padding: 40px; text-align: center; color: #666; font-size: 16px;"><p>\uc9c0\ub3c4 \ucd08\uae30\ud654 \uc624\ub958</p></div>';
-    }
-    loadGoogleMapsScript();
-    loadData();
-  }
-}
-
-async function initializeGoogleMap() {
-  try {
-    const mapElement = document.getElementById('map');
-    if (!mapElement) {
-      loadData();
-      return;
-    }
-
-    if (!window.google || !window.google.maps) {
-      mapScriptLoading = false;
-      loadData();
-      return;
-    }
-
-    map = new google.maps.Map(mapElement, {
-      zoom: 13,
-      center: { lat: 37.5665, lng: 126.9780 },
-      disableDefaultUI: false,
-      zoomControl: true,
-      mapTypeControl: false,
-      scaleControl: true,
-      streetViewControl: false,
-      rotateControl: false,
-      fullscreenControl: true
-    });
-
-    mapProvider = 'google';
-    mapLoaded = true;
-    mapScriptLoading = false;
-    loadData();
-  } catch (err) {
+    console.error('Kakao Map init error:', err);
     const mapElement = document.getElementById('map');
     if (mapElement) {
       mapElement.innerHTML =
         '<div style="padding: 40px; text-align: center; color: #666; font-size: 16px;"><p>지도 초기화 오류</p></div>';
     }
-    mapScriptLoading = false;
     loadData();
   }
 }
-
-window.initMap = initializeGoogleMap;
 
 document.addEventListener('DOMContentLoaded', () => {
   loadData();
@@ -1134,15 +1053,10 @@ function panToExhibition(exhibition) {
       venue?.address || exhibition?.venue?.address || '',
       venue?.exhibitions || [exhibition]
     );
-  if (pos && map) {
-    if (mapProvider === 'kakao') {
-      const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
-      map.panTo(latlng);
-      map.setLevel(3);
-    } else {
-      map.panTo(pos);
-      map.setZoom(15);
-    }
+  if (pos && map && window.kakao?.maps) {
+    const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
+    map.panTo(latlng);
+    map.setLevel(3);
   }
 }
 
@@ -1213,98 +1127,34 @@ function renderVenueMarkers() {
 
   markerPositions = [];
   markers.forEach((m) => {
-    if (mapProvider === 'kakao') {
-      if (m && m.setMap) m.setMap(null);
-    } else {
-      if (m?.setMap) m.setMap(null);
-    }
+    if (m?.setMap) m.setMap(null);
   });
   markers = [];
 
   if (filteredVenueExhibitions.length === 0) return;
+  if (!window.kakao?.maps) return;
 
   // 지도에도 필터링된 전시만 표시 (태그, 검색어 등 적용)
   const validExhibitions = filteredVenueExhibitions.filter((e) => !isExcludedExhibition(e));
   const venueNames = new Set(validExhibitions.map((e) => e.venue?.name).filter(Boolean));
   const filteredVenues = venues.filter((v) => venueNames.has(v.name));
 
-  if (mapProvider === 'kakao') {
-    if (!window.kakao || !window.kakao.maps) return;
-    const bounds = new kakao.maps.LatLngBounds();
-    filteredVenues.forEach((venue, displayIndex) => {
-      const position = coerceLatLng(venue.location);
-      if (!position) return;
-      // 원본 venues 배열에서의 인덱스를 찾음
-      const venueIndex = venues.findIndex((v) => v.name === venue.name);
-      const latlng = new kakao.maps.LatLng(position.lat, position.lng);
-      const marker = new kakao.maps.Marker({
-        position: latlng,
-        map
-      });
-      kakao.maps.event.addListener(marker, 'click', () => {
-        console.log('[마커 클릭] venueIndex:', venueIndex, 'venue:', venue.name);
-        // 기존 오버레이 닫기
-        if (currentOverlay) {
-          if (currentOverlay.setMap) currentOverlay.setMap(null);
-          else if (currentOverlay.close) currentOverlay.close();
-          currentOverlay = null;
-        }
-        const firstExh = venue.exhibitions.find((e) => !isExcludedExhibition(e)) || venue.exhibitions[0];
-        console.log('[마커 클릭] firstExh:', firstExh?.title);
-        if (venueIndex >= 0) {
-          showVenueDetail(venueIndex, firstExh?._id || '');
-        } else {
-          showVenueDetailByVenue(venue, firstExh?._id || '');
-        }
-      });
-      markers.push(marker);
-      markerPositions[displayIndex] = { lat: position.lat, lng: position.lng };
-      bounds.extend(latlng);
-    });
-    if (markers.length > 1) {
-      map.setBounds(bounds);
-    } else if (markers.length === 1) {
-      map.setCenter(bounds.getSouthWest());
-      map.setLevel(4);
-    }
-    return;
-  }
-
-  if (typeof google === 'undefined' || !google.maps || !google.maps.Marker) return;
-  const bounds = new google.maps.LatLngBounds();
-
+  const bounds = new kakao.maps.LatLngBounds();
   filteredVenues.forEach((venue, displayIndex) => {
     const position = coerceLatLng(venue.location);
     if (!position) return;
     // 원본 venues 배열에서의 인덱스를 찾음
     const venueIndex = venues.findIndex((v) => v.name === venue.name);
-
-    const marker = new google.maps.Marker({
-      position,
-      map,
-      title: venue.name,
-      label: {
-        text: String(displayIndex + 1),
-        color: '#FFFFFF',
-        fontWeight: 'bold',
-        fontSize: '16px'
-      },
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 18,
-        fillColor: '#1FB2A6',
-        fillOpacity: 1,
-        strokeColor: '#FFFFFF',
-        strokeWeight: 3
-      }
+    const latlng = new kakao.maps.LatLng(position.lat, position.lng);
+    const marker = new kakao.maps.Marker({
+      position: latlng,
+      map
     });
-
-    marker.addListener('click', () => {
+    kakao.maps.event.addListener(marker, 'click', () => {
       console.log('[마커 클릭] venueIndex:', venueIndex, 'venue:', venue.name);
       // 기존 오버레이 닫기
       if (currentOverlay) {
         if (currentOverlay.setMap) currentOverlay.setMap(null);
-        else if (currentOverlay.close) currentOverlay.close();
         currentOverlay = null;
       }
       const firstExh = venue.exhibitions.find((e) => !isExcludedExhibition(e)) || venue.exhibitions[0];
@@ -1315,91 +1165,16 @@ function renderVenueMarkers() {
         showVenueDetailByVenue(venue, firstExh?._id || '');
       }
     });
-
     markers.push(marker);
     markerPositions[displayIndex] = { lat: position.lat, lng: position.lng };
-    bounds.extend(position);
+    bounds.extend(latlng);
   });
 
-  if (markers.length > 0) {
-    if (markers.length === 1) {
-      const onlyPosition = markers[0].getPosition();
-      if (onlyPosition) map.setCenter(onlyPosition);
-      map.setZoom(13);
-    } else {
-      map.fitBounds(bounds);
-      google.maps.event.addListenerOnce(map, 'bounds_changed', function() {
-        const currentZoom = map.getZoom();
-        if (currentZoom > 14) map.setZoom(14);
-      });
-    }
-  }
-}
-
-function showInfoWindow(marker, venue, venueIndex) {
-  if (currentOverlay) {
-    if (mapProvider === 'kakao') {
-      currentOverlay.setMap(null);
-    } else {
-      currentOverlay.close();
-    }
-    currentOverlay = null;
-  }
-
-  const firstExhibition = venue.exhibitions.find((e) => !isExcludedExhibition(e)) || venue.exhibitions[0] || {};
-  const imageUrl = firstExhibition.images && firstExhibition.images[0]
-    ? firstExhibition.images[0]
-    : getFallbackImage(firstExhibition);
-  const exhibitionTitle = sanitizeText(firstExhibition.title || '\uc804\uc2dc \uc815\ubcf4');
-  const exhId = firstExhibition._id || '';
-
-  const content = document.createElement('div');
-  content.style.cssText = 'background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); width: 240px; position: relative;';
-  
-  content.innerHTML = `
-    <button class="overlay-close" style="position: absolute; top: 8px; right: 8px; border: none; background: none; cursor: pointer; font-size: 16px; padding: 0; color: #666;">×</button>
-    <div style="margin-bottom: 8px;">
-      <img src="${imageUrl}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px;" onerror="this.src='${getFallbackImage(firstExhibition)}'">
-    </div>
-    <div style="font-weight: bold; font-size: 14px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${exhibitionTitle}</div>
-    <div style="font-size: 12px; color: #666; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${venue.name}</div>
-    <button class="overlay-detail-btn" style="width: 100%; background: #1FB2A6; color: white; border: none; padding: 8px 0; border-radius: 4px; cursor: pointer; font-size: 13px;">자세히 보기</button>
-  `;
-
-  const closeBtn = content.querySelector('.overlay-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      closeOverlay();
-    });
-  }
-
-  const detailBtn = content.querySelector('.overlay-detail-btn');
-  if (detailBtn) {
-    detailBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (venueIndex >= 0) {
-        window.showVenueDetail(venueIndex, exhId);
-      } else {
-        showVenueDetailByVenue(venue, exhId);
-      }
-    });
-  }
-
-  if (mapProvider === 'kakao') {
-    const overlay = new kakao.maps.CustomOverlay({
-      content: content,
-      position: marker.getPosition(),
-      yAnchor: 1.3,
-      zIndex: 100,
-      clickable: true
-    });
-    overlay.setMap(map);
-    currentOverlay = overlay;
-  } else {
-    const infoWindow = new google.maps.InfoWindow({ content: content });
-    infoWindow.open(map, marker);
-    currentOverlay = infoWindow;
+  if (markers.length > 1) {
+    map.setBounds(bounds);
+  } else if (markers.length === 1) {
+    map.setCenter(bounds.getSouthWest());
+    map.setLevel(4);
   }
 }
 
@@ -1430,15 +1205,10 @@ function showVenueDetailByVenue(venue, exhibitionId = '') {
       venue.address || target?.venue?.address || '',
       venue.exhibitions
     );
-  if (pos && map) {
-    if (mapProvider === 'kakao') {
-      const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
-      map.panTo(latlng);
-      map.setLevel(3);
-    } else {
-      map.panTo(pos);
-      map.setZoom(15);
-    }
+  if (pos && map && window.kakao?.maps) {
+    const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
+    map.panTo(latlng);
+    map.setLevel(3);
   }
 
   openVenuePanel(currentVenue, { pan: false, scroll: true, exhibitionId: target._id });
@@ -1449,11 +1219,7 @@ function showVenueDetailByVenue(venue, exhibitionId = '') {
 
 window.closeOverlay = function() {
   if (currentOverlay) {
-    if (mapProvider === 'kakao') {
-      currentOverlay.setMap(null);
-    } else {
-      currentOverlay.close();
-    }
+    if (currentOverlay.setMap) currentOverlay.setMap(null);
     currentOverlay = null;
   }
 };
@@ -1487,15 +1253,10 @@ window.showVenueDetail = function(venueIndex, exhibitionId = '') {
       venue.address || target?.venue?.address || '',
       venue.exhibitions
     );
-  if (pos && map) {
-    if (mapProvider === 'kakao') {
-      const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
-      map.panTo(latlng);
-      if (map.setLevel) map.setLevel(3);
-    } else {
-      map.panTo(pos);
-      if (map.setZoom) map.setZoom(15);
-    }
+  if (pos && map && window.kakao?.maps) {
+    const latlng = new kakao.maps.LatLng(pos.lat, pos.lng);
+    map.panTo(latlng);
+    if (map.setLevel) map.setLevel(3);
   }
 
   openVenuePanel(currentVenue, { pan: false, scroll: true, exhibitionId: target._id });
