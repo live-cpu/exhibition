@@ -178,6 +178,9 @@ const TRAVEL_NOISE_RE = /(가볼만한곳|가볼만한|볼거리|놀거리|투�
 // 안내형/후기형 (감점 또는 컷)
 const GUIDE_NOISE_RE = /(후기|리뷰|방문기|관람기|다녀왔|다녀온|주차|예매|예약|가격|할인|일정|료금|소요시간|오시는길|라인업|가이드|정리|블로그|입장권)/i;
 
+// 티켓 할인 카테고리 (전시 아님 - 강한 컷)
+const DISCOUNT_CATEGORY_RE = /^(국가유공자|문화패스|경로우대|다자녀|장애인|예술인패스|기초생활수급자|차상위계층|군인|청소년|어린이|유아|단체)(\s*\(|$)/i;
+
 // 전시명 suffix (살림)
 const EXHIBITION_SUFFIX_RE = /(전시|전시회|특별전|기획전|개인전|초대전|사진전|공모전|회고전|소장품전|award|exhibition)$/i;
 
@@ -888,6 +891,9 @@ function isValidExhibitionCandidate(title, venueName, desc, { allowGuideNoise = 
 
   // 노이즈 패턴
   if (TRAVEL_NOISE_RE.test(t)) return false;
+
+  // 티켓 할인 카테고리 (전시 아님)
+  if (DISCOUNT_CATEGORY_RE.test(t)) return false;
 
   // 기관명만
   if (/^(미술관|박물관|아트센터|갤러리|스튜디오)$/i.test(t)) return false;

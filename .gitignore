@@ -114,3 +114,5 @@ user_uploads/
 # Claude
 # ===================
 .claude/
+
+.vercel
