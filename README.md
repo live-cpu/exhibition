@@ -4,7 +4,7 @@
 
 ### 전시 여행 길잡이 | Exhibition Travel Guide
 
-[![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](https://14-exhibition.vercel.app)
+[![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](https://14exhibition.vercel.app)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js)](https://nodejs.org)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb)](https://mongodb.com)
 
@@ -12,7 +12,9 @@
 
 ### 📺 Demo
 
-https://media.serafuku.moe/local_content/original/d7ba0903-99f1-4a49-bc88-41f0c92bfb47.mp4
+👉 **[https://14exhibition.vercel.app](https://14exhibition.vercel.app)**
+
+![Demo](test.gif)
 
 ---
 
@@ -33,15 +35,16 @@ https://media.serafuku.moe/local_content/original/d7ba0903-99f1-4a49-bc88-41f0c9
 
 ## 🏛️ Data Sources
 
-### Venue (전시장 - 고정 데이터)
-- **26~60개** 주요 미술관 (국현미, 서울시립, ACC, 리움, 뮤지엄산 등)
-- 전국 8도 대표 시설 정보
-- 위치, 운영시간, 웹사이트, 배리어프리 5종
+### 공공데이터 API (6개 소스)
 
-### Exhibition (전시 - 변동 데이터)
-- **매일 새벽 3시** 자동 동기화
-- 문화체육관광부, 지역문화진흥원, 통합 전시 API
-- 전시명, 기간, 이미지, 관람료, 설명
+| API | 설명 |
+|-----|------|
+| 한국문화정보원 외_전시정보(통합) | 27개소 미술관/갤러리 전시 |
+| 문화체육관광부_문화예술공연(통합) | 전국 문화예술 공연/전시 |
+| 서울시 문화행사 정보 | 서울열린데이터 |
+| 국립현대미술관 | MMCA 전시 정보 |
+| 대구광역시 공연전시 정보 | 대구 문화재단 |
+| 경기도 문화 행사 현황 | 경기데이터드림 |
 
 ### 보강 데이터
 - **Brave/Naver 검색**: 누락 정보 보완
@@ -109,7 +112,11 @@ npm start
 | `KAKAO_MAP_KEY` | 카카오맵 JavaScript 키 |
 | `NAVER_CLIENT_ID/SECRET` | 네이버 검색 API |
 | `KOR_WITH_API_KEY` | 관광공사 무장애 API |
-| `UNIFIED_EXHIBITION_API_KEY` | 통합 전시 API |
+| `UNIFIED_EXHIBITION_API_KEY` | 한국문화정보원 통합 전시 |
+| `SEMA_CULTURE_API_KEY` | 서울시 문화행사 |
+| `MOCA_API_KEY` | 국립현대미술관 |
+| `GG_API_KEY` | 경기도 문화행사 |
+| `CNV_API_KEY` | 문화체육관광부 |
 
 ---
 
