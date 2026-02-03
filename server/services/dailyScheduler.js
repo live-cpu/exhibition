@@ -97,6 +97,7 @@ async function enrichVenuesBarrierFree() {
 
   // 무장애 정보가 없거나 부족한 venue 찾기
   const dbVenues = await Venue.find({
+    'barrierFree._source': { $ne: 'korwith' },
     $or: [
       { 'barrierFree.wheelchair': { $exists: false } },
       { 'barrierFree.wheelchair': false, 'barrierFree.elevator': false, 'barrierFree.accessibleToilet': false }
@@ -132,18 +133,15 @@ async function enrichVenuesBarrierFree() {
 
       // 무장애 정보 병합 (기존 true 값은 유지)
       if (result.barrierFree) {
-        const merged = { ...dbVenue.barrierFree };
+        const merged = {};
         for (const [key, value] of Object.entries(result.barrierFree)) {
-          // boolean 값: 기존이 false면 새 값으로, 기존이 true면 유지
           if (typeof value === 'boolean') {
-            if (!merged[key]) merged[key] = value;
-          }
-          // string 값 (grade): 기존 값이 없으면 새 값으로
-          else if (typeof value === 'string' && !merged[key]) {
+            merged[key] = value;
+          } else if (typeof value === 'string' && value) {
             merged[key] = value;
           }
         }
-        updates.barrierFree = merged;
+        updates.barrierFree = { ...(dbVenue.barrierFree || {}), ...merged, _source: 'korwith' };
       }
 
       if (Object.keys(updates).length > 0) {

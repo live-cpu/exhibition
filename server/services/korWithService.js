@@ -6,12 +6,12 @@
  */
 
 const BASE_URL = 'http://apis.data.go.kr/B551011/KorWithService2';
-const CONTENT_TYPE_ID = '14'; // 14 = 문화시설
+const CONTENT_TYPE_ID = '12'; // 12 = 관광지/문화시설(검색 매칭률 개선)
 
 /**
  * API 호출 헬퍼
  */
-async function callApi(endpoint, params) {
+async function callApi(endpoint, params, { retries = 5, backoffMs = 2000 } = {}) {
   const apiKey = process.env.KOR_WITH_API_KEY;
   if (!apiKey) {
     console.warn('[KorWithService] API key not configured');
@@ -31,13 +31,31 @@ async function callApi(endpoint, params) {
   });
 
   try {
-    const res = await fetch(url.toString());
-    if (!res.ok) {
+    let attempt = 0;
+    while (attempt <= retries) {
+      const res = await fetch(url.toString());
+      if (res.ok) {
+        const data = await res.json();
+        return data?.response?.body?.items?.item || null;
+      }
+      if (res.status === 429 && attempt < retries) {
+        const wait = backoffMs * (attempt + 1);
+        console.warn(`[KorWithService] 429, retrying in ${wait}ms (${endpoint})`);
+        await new Promise(r => setTimeout(r, wait));
+        attempt++;
+        continue;
+      }
+      if (res.status >= 500 && attempt < retries) {
+        const wait = backoffMs * (attempt + 1);
+        console.warn(`[KorWithService] ${res.status}, retrying in ${wait}ms (${endpoint})`);
+        await new Promise(r => setTimeout(r, wait));
+        attempt++;
+        continue;
+      }
       console.warn(`[KorWithService] HTTP ${res.status}: ${endpoint}`);
       return null;
     }
-    const data = await res.json();
-    return data?.response?.body?.items?.item || null;
+    return null;
   } catch (err) {
     console.error(`[KorWithService] ${endpoint} error:`, err.message);
     return null;
